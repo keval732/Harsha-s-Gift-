@@ -1,81 +1,101 @@
 let highestZ = 1;
 
 class Paper {
-  holdingPaper = false;
-  mouseTouchX = 0;
-  mouseTouchY = 0;
-  mouseX = 0;
-  mouseY = 0;
-  prevMouseX = 0;
-  prevMouseY = 0;
-  velX = 0;
-  velY = 0;
-  rotation = Math.random() * 30 - 15;
-  currentPaperX = 0;
-  currentPaperY = 0;
+  holding = false;
   rotating = false;
+  offsetX = 0;
+  offsetY = 0;
+  posX = 0;
+  posY = 0;
+  rotation = Math.random() * 30 - 15;
+  initialAngle = 0;
 
   init(paper) {
-    document.addEventListener('mousemove', (e) => {
-      if(!this.rotating) {
-        this.mouseX = e.clientX;
-        this.mouseY = e.clientY;
-        
-        this.velX = this.mouseX - this.prevMouseX;
-        this.velY = this.mouseY - this.prevMouseY;
+    paper.style.transform = `translate(0px, 0px) rotate(${this.rotation}deg)`;
+
+    // Prevent right-click menu
+    paper.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // ======== Touch Events (Phones/Tablets) ========
+    paper.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      paper.style.zIndex = highestZ++;
+
+      if (e.touches.length === 1) {
+        this.holding = true;
+        const touch = e.touches[0];
+        this.offsetX = touch.clientX - this.posX;
+        this.offsetY = touch.clientY - this.posY;
       }
-        
-      const dirX = e.clientX - this.mouseTouchX;
-      const dirY = e.clientY - this.mouseTouchY;
-      const dirLength = Math.sqrt(dirX*dirX+dirY*dirY);
-      const dirNormalizedX = dirX / dirLength;
-      const dirNormalizedY = dirY / dirLength;
+      if (e.touches.length === 2) {
+        this.rotating = true;
+        this.initialAngle = this.getAngle(e.touches);
+      }
+    });
 
-      const angle = Math.atan2(dirNormalizedY, dirNormalizedX);
-      let degrees = 180 * angle / Math.PI;
-      degrees = (360 + Math.round(degrees)) % 360;
-      if(this.rotating) {
-        this.rotation = degrees;
+    paper.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+
+      if (this.holding && e.touches.length === 1) {
+        const touch = e.touches[0];
+        this.posX = touch.clientX - this.offsetX;
+        this.posY = touch.clientY - this.offsetY;
+      }
+      if (this.rotating && e.touches.length === 2) {
+        const currentAngle = this.getAngle(e.touches);
+        const angleDiff = currentAngle - this.initialAngle;
+        this.rotation += angleDiff;
+        this.initialAngle = currentAngle;
       }
 
-      if(this.holdingPaper) {
-        if(!this.rotating) {
-          this.currentPaperX += this.velX;
-          this.currentPaperY += this.velY;
-        }
-        this.prevMouseX = this.mouseX;
-        this.prevMouseY = this.mouseY;
+      paper.style.transform = `translate(${this.posX}px, ${this.posY}px) rotate(${this.rotation}deg)`;
+    });
 
-        paper.style.transform = `translateX(${this.currentPaperX}px) translateY(${this.currentPaperY}px) rotateZ(${this.rotation}deg)`;
+    paper.addEventListener('touchend', (e) => {
+      if (e.touches.length === 0) {
+        this.holding = false;
+        this.rotating = false;
       }
-    })
+    });
 
+    // ======== Mouse Events (PC) ========
     paper.addEventListener('mousedown', (e) => {
-      if(this.holdingPaper) return; 
-      this.holdingPaper = true;
-      
-      paper.style.zIndex = highestZ;
-      highestZ += 1;
-      
-      if(e.button === 0) {
-        this.mouseTouchX = this.mouseX;
-        this.mouseTouchY = this.mouseY;
-        this.prevMouseX = this.mouseX;
-        this.prevMouseY = this.mouseY;
+      paper.style.zIndex = highestZ++;
+      if (e.button === 0) { // Left click to drag
+        this.holding = true;
+        this.offsetX = e.clientX - this.posX;
+        this.offsetY = e.clientY - this.posY;
       }
-      if(e.button === 2) {
+      if (e.button === 2) { // Right click to rotate
         this.rotating = true;
       }
     });
+
+    document.addEventListener('mousemove', (e) => {
+      if (this.holding && !this.rotating) {
+        this.posX = e.clientX - this.offsetX;
+        this.posY = e.clientY - this.offsetY;
+      }
+      if (this.rotating) {
+        this.rotation += e.movementX; // Rotate based on horizontal movement
+      }
+      paper.style.transform = `translate(${this.posX}px, ${this.posY}px) rotate(${this.rotation}deg)`;
+    });
+
     window.addEventListener('mouseup', () => {
-      this.holdingPaper = false;
+      this.holding = false;
       this.rotating = false;
     });
+  }
+
+  getAngle(touches) {
+    const dx = touches[1].clientX - touches[0].clientX;
+    const dy = touches[1].clientY - touches[0].clientY;
+    return Math.atan2(dy, dx) * (180 / Math.PI);
   }
 }
 
 const papers = Array.from(document.querySelectorAll('.paper'));
-
 papers.forEach(paper => {
   const p = new Paper();
   p.init(paper);
